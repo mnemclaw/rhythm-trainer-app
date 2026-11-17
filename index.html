@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>🌍 Rhythmus-Trainer</title>
+<style>
+:root{
+  --bg:#0d0f14; --surface:#161a22; --surface2:#1d2230; --ink:#eef1f7; --muted:#8a93a6;
+  --border:#2a3142; --accentL:#4f8cff; --accentR:#ff9d45;
+  --flashL:#4f8cff; --flashR:#ff9d45; --good:#3ddc97;
+  --radius:18px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+/* Doppeltipp-Zoom aus: "user-scalable=no" ignoriert iOS Safari seit iOS 10 —
+   touch-action:manipulation erlaubt Scrollen/Pinch, unterdrückt aber den
+   Doppeltipp-Zoom. Auf den Pads zusätzlich touch-action:none, damit schnelles
+   Trommeln nie als Zoom-Geste durchgeht. */
+html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  background:var(--bg); color:var(--ink);
+  overscroll-behavior:none; -webkit-font-smoothing:antialiased;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 16px);
+  max-width:520px; margin:0 auto;
+}
+/* ---------- header ---------- */
+.apphead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.apphead h1{font-size:17px;font-weight:800;letter-spacing:.2px}
+.apphead .hp{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.hp .dot{width:8px;height:8px;border-radius:50%;background:var(--good);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+/* ---------- chips ---------- */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;background:var(--surface);border:1.5px solid var(--border);color:var(--muted);
+  border-radius:999px;padding:8px 13px;font-size:13px;font-weight:600;white-space:nowrap}
+.chip.sel{background:linear-gradient(135deg,#22304d,#1d2740);border-color:var(--accentL);color:var(--ink)}
+.chip .st{font-size:10px;margin-left:3px}
+/* ---------- title card ---------- */
+.rcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.rcard .l h2{font-size:19px;font-weight:800;line-height:1.15}
+.rcard .l .meta{font-size:12px;color:var(--muted);margin-top:3px}
+.rcard .stars{font-size:15px;color:var(--accentR);letter-spacing:2px;flex:0 0 auto}
+/* ---------- pads ---------- */
+.pads{display:flex;gap:10px;margin-bottom:10px}
+.pad{flex:1;height:150px;border-radius:26px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  border:1.5px solid var(--border);background:var(--surface);
+  transition:transform .06s ease;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.pad:active{transform:scale(.97)}
+.pad .lbl{font-size:13px;font-weight:800;letter-spacing:2px;color:var(--muted)}
+.pad .sym{font-size:44px;font-weight:900;line-height:1;color:var(--ink);opacity:.9;min-height:48px}
+.pad .sub{font-size:10.5px;color:var(--muted)}
+.pad.L{box-shadow:inset 0 0 0 1px rgba(79,140,255,.12)}
+.pad.R{box-shadow:inset 0 0 0 1px rgba(255,157,69,.12)}
+.pad.L.lit{background:rgba(79,140,255,.30);border-color:var(--accentL)}
+.pad.R.lit{background:rgba(255,157,69,.30);border-color:var(--accentR)}
+.pad.L.lit .lbl{color:var(--accentL)} .pad.R.lit .lbl{color:var(--accentR)}
+.pad.wave{background:rgba(138,147,166,.16);border-color:var(--muted)}
+.pad.wave .sym{color:var(--muted)}
+@keyframes flash{0%{transform:scale(1.045)}100%{transform:scale(1)}}
+.pad.lit{animation:flash .16s ease}
+/* ---------- grid ---------- */
+.gridwrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 12px 9px;margin-bottom:10px}
+.grid{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;row-gap:8px}
+.cell{width:22px;height:26px;border-radius:6px;border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;color:transparent;position:relative;background:#12151d}
+.cell.L{border-color:rgba(79,140,255,.55)} .cell.L.has{color:var(--accentL)}
+.cell.R{border-color:rgba(255,157,69,.55)} .cell.R.has{color:var(--accentR)}
+.cell.B{border-color:rgba(238,241,247,.55)} .cell.B.has{color:var(--ink)}
+.cell.acc{background:rgba(255,255,255,.07)}
+.cell.tick::after{content:"";width:3px;height:3px;border-radius:50%;background:#39435b;position:absolute}
+.cell.cur{outline:2px solid #fff;outline-offset:1px;transform:translateY(-2px)}
+.cell.cur::before{content:"";position:absolute;inset:-6px;border-radius:9px;background:rgba(255,255,255,.06)}
+.cell.done{opacity:.45}
+.gsep{margin-left:7px !important}
+.grouplbl{text-align:center;font-size:11px;color:var(--muted);margin-top:8px;letter-spacing:1px}
+/* ---------- transport ---------- */
+.transport{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.playbtn{flex:0 0 auto;width:62px;height:62px;border-radius:50%;border:none;
+  background:linear-gradient(135deg,var(--accentL),#7a5cff);color:#fff;font-size:26px;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(79,140,255,.35)}
+.playbtn:active{transform:scale(.94)}
+.bpmbox{flex:1;display:flex;flex-direction:column;gap:6px}
+.bpmrow{display:flex;align-items:center;justify-content:space-between}
+.bpmval{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bpmval small{font-size:10px;color:var(--muted);font-weight:600;margin-left:3px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3142}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+  background:#fff;margin-top:-10px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.bpmstep{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+.bpmstep button{width:38px;height:28px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--ink);font-size:16px;font-weight:800}
+/* ---------- info ---------- */
+.info{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px}
+.info .say{font-size:15px;font-weight:700;line-height:1.45;color:#ffd9a8}
+.info .tip{font-size:13px;color:var(--muted);line-height:1.5;margin-top:7px}
+.legend{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--border)}
+.lg{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.lg b{color:var(--ink);font-size:11px}
+.lg .sw{width:10px;height:10px;border-radius:3px}
+/* ---------- footer ---------- */
+.foot{font-size:11px;color:var(--muted);text-align:center;line-height:1.6;padding:2px 8px}
+.foot b{color:#c7d2e8}
+</style>
+</head>
+<body>
+
+<div class="apphead">
+  <h1>🌍 Rhythmus-Trainer</h1>
+  <div class="hp"><span class="dot"></span><span id="rcount">R</span> Rhythmen · L/R</div>
+</div>
+
+<div class="chips" id="chips"></div>
+
+<div class="rcard">
+  <div class="l">
+    <h2 id="rname">–</h2>
+    <div class="meta" id="rmeta">–</div>
+  </div>
+  <div class="stars" id="rstars"></div>
+</div>
+
+<div class="pads">
+  <div class="pad L" id="padL"><div class="lbl">LINKS</div><div class="sym" id="symL"></div><div class="sub" id="subL">linke Hand</div></div>
+  <div class="pad R" id="padR"><div class="lbl">RECHTS</div><div class="sym" id="symR"></div><div class="sub" id="subR">rechte Hand</div></div>
+</div>
+
+<div class="gridwrap">
+  <div class="grid" id="grid"></div>
+  <div class="grouplbl" id="grouplbl"></div>
+</div>
+
+<div class="transport">
+  <button class="playbtn" id="play">▶</button>
+  <div class="bpmbox">
+    <div class="bpmrow"><span style="font-size:11px;color:var(--muted);font-weight:700">TEMPO</span><span class="bpmval" id="bpmval">100<small>BPM</small></span></div>
+    <input type="range" id="bpmslider" min="40" max="260" step="1">
+  </div>
+  <div class="bpmstep">
+    <button id="bpmup">+</button>
+    <button id="bpmdn">−</button>
+  </div>
+</div>
+
+<div class="info">
+  <div class="say" id="rsay">–</div>
+  <div class="tip" id="rtip">–</div>
+  <div class="legend">
+    <span class="lg"><b>D</b> Dum (tief)</span>
+    <span class="lg"><b>T</b> Tak (hoch)</span>
+    <span class="lg"><b>k</b> leicht</span>
+    <span class="lg"><b>B</b> beide Hände</span>
+    <span class="lg"><b>W</b> Winken (leer)</span>
+    <span class="lg"><span class="sw" style="background:var(--accentL)"></span>links</span>
+    <span class="lg"><span class="sw" style="background:var(--accentR)"></span>rechts</span>
+  </div>
+</div>
+
+<div class="foot">🎧 <b>Kopfhörer aufsetzen</b> — linke Hand klingt links, rechte rechts.<br>🔇 iPhone-<b>Stummschalter aus</b> (Web-Audio schweigt sonst). Pads antippen = mitspielen.</div>
+
+<script>
+window.__errs = [];
+window.onerror = function(m,s,l,c){ window.__errs.push(m+" @"+l+":"+c); return false; };
+
+/* ================= DATA ================= */
+// t: D=dum tief, T=tak hoch, k=leicht, B=beide, C=klatsch, W=winken(leer) · h: L/R/B · a: akzent
+const R = [
+{id:'tresillo',name:'Tresillo (3+3+2)',flag:'🇨🇺',region:'Kuba / Puerto Rico',meter:'Achtel · 3+3+2',stars:1,pulses:8,sub:2,groups:[4,4],bpm:105,
+ steps:{0:{t:'D',h:'R',a:1},3:{t:'D',h:'L',a:1},6:{t:'D',h:'R',a:1}},
+ say:'EINS-zwei-drei VIER-fünf-sechs SIEBEN-acht',
+ tip:'Die einfachste „schiefe" Figur der Welt: 3+3+2. Steckt in Reggaeton, Habanera, Dementsprechend vielen Popsongs. Lenkrad: Klopf-Klopf-Pause, Klopf-Klopf-Pause, Klopf-Klopf.'},
+
+{id:'son',name:'Son Clave (3-2)',flag:'🇨🇺',region:'Kuba',meter:'4/4 · Sechzehntel',stars:2,pulses:16,sub:4,groups:[4,4,4,4],bpm:112,
+ steps:{0:{t:'T',h:'R',a:1},3:{t:'T',h:'L',a:1},6:{t:'T',h:'R',a:1},10:{t:'T',h:'L',a:1},12:{t:'T',h:'R',a:1}},
+ say:'eins – (zwei-)-und – (drei-)-und – (vier-)und-e',
+ tip:'DER Grundbaustein der lateinamerikanischen Musik: erst 3 Schläge, dann 2. Linke Hand spielt die 3-Seite, rechte die 2-Seite.'},
+
+{id:'rumba',name:'Rumba Clave (3-2)',flag:'🇨🇺',region:'Kuba',meter:'4/4 · Sechzehntel',stars:2,pulses:16,sub:4,groups:[4,4,4,4],bpm:112,
+ steps:{0:{t:'T',h:'R',a:1},3:{t:'T',h:'L',a:1},6:{t:'T',h:'R',a:1},10:{t:'T',h:'L',a:1},14:{t:'T',h:'R',a:1}},
+ say:'wie Son Clave — aber der letzte Schlag kommt später',
+ tip:'Nur der 5. Schlag wandert um ein Sechzehntel nach hinten — dadurch „schwingt" es intensiver. Direkt nach der Son Clave üben, dann hörst du den Unterschied sofort.'},
+
+{id:'samba',name:'Samba Surdo',flag:'🇧🇷',region:'Brasilien',meter:'2/4 · Viertel',stars:1,pulses:4,sub:1,groups:[2,2],bpm:100,
+ steps:{1:{t:'D',h:'R',a:1},3:{t:'D',h:'L',a:1}},
+ say:'eins – ZWEI – drei – VIER (der Boom liegt auf der 2)',
+ tip:'Der Herzschlag des Samba: der tiefe Surdo-Boom auf der 2 (und die Antwort auf der 4). Beide Hände flach auf die Oberschenkel — alles andere tanzt um diesen Boom herum.'},
+
+{id:'ewe',name:'Ewe Standard Pattern',flag:'🇬🇭',region:'Ghana / Togo',meter:'12/8 · Glocke (7 Schläge)',stars:2,pulses:12,sub:3,groups:[3,3,3,3],bpm:116,
+ steps:{0:{t:'D',h:'R',a:1},2:{t:'T',h:'L'},4:{t:'D',h:'R',a:1},5:{t:'T',h:'L'},7:{t:'D',h:'R',a:1},9:{t:'T',h:'L'},11:{t:'T',h:'R'}},
+ say:'KON-ko-KON-ko-KON-ko-KON-ko-kon-KON',
+ tip:'Der berühmteste Glocken-Timeline Afrikas (Agbadza, Gahu). D = tiefe Glocke, T = hohe. 7 Schläge über 12 Pulse — die 3-gegen-2-Spannung braucht ein paar Durchläufe, dann sitzt sie.'},
+
+{id:'maqsum',name:'Maqsum',flag:'🇪🇬',region:'Ägypten',meter:'4/4 · Achtel',stars:1,pulses:8,sub:2,groups:[2,2,2,2],bpm:100,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'T',h:'L'},3:{t:'T',h:'L'},4:{t:'D',h:'R',a:1},6:{t:'T',h:'L'}},
+ say:'DUM – tak – (Pause) tak – DUM – (Pause) tak',
+ tip:'Die Grundlage der arabischen Popmusik. Dum = tief (rechte Hand), Tak = hoch (linke Hand). Erst trennen, dann Tempo drauf.'},
+
+{id:'baladi',name:'Baladi',flag:'🇪🇬',region:'Ägypten',meter:'4/4 · Achtel',stars:2,pulses:8,sub:2,groups:[2,2,2,2],bpm:95,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'D',h:'R',a:1},3:{t:'T',h:'L'},4:{t:'D',h:'R',a:1},6:{t:'T',h:'L'}},
+ say:'DUM-DUM – (Pause) tak – DUM – (Pause) tak',
+ tip:'Wie Maqsum, aber mit ZWEI Dums hintereinander → schwerer, erdiger. Das Doppel-Dum ist die ganze Persönlichkeit: klopfe es als EINE Geste, nicht als zwei Schläge.'},
+
+{id:'saidi',name:'Saidi',flag:'🇪🇬',region:'Oberägypten',meter:'4/4 · Achtel',stars:2,pulses:8,sub:2,groups:[2,2,2,2],bpm:100,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'T',h:'L'},3:{t:'D',h:'R',a:1},4:{t:'D',h:'R',a:1},5:{t:'T',h:'L'}},
+ say:'DUM – tak – DUM-DUM – tak',
+ tip:'Das Dum-Paar sitzt in der MITTE des Taktes → marschierender Charakter (Stocktanz-Tahtib). Gleiche Zählzeit wie Maqsum/Baladi, ganz anderes Gefühl.'},
+
+{id:'teental',name:'Teental (Tintal)',flag:'🇮🇳',region:'Indien',meter:'16 Matras = 4+4+4+4',stars:1,pulses:16,sub:1,groups:[4,4,4,4],bpm:96,ticks:'pulse',
+ steps:{0:{t:'C',h:'B',a:1},4:{t:'C',h:'B',a:1},8:{t:'W',h:'B'},12:{t:'C',h:'B',a:1}},
+ say:'KLATSCH – 2-3-4 – KLATSCH – 6-7-8 – WINKEN – 10-11-12 – KLATSCH – 14-15-16',
+ tip:'Der wichtigste Taal Nordindiens. 👏 auf 1, 5, 13, WINKEN (khali, „leer") auf 9 — die drei Klatschen geben den Namen „Teen Taal". Leiser Tick auf jeder Matra hält die Zählzeit.'},
+
+{id:'keharwa',name:'Keharwa',flag:'🇮🇳',region:'Indien',meter:'8 Matras = 4+4',stars:1,pulses:8,sub:1,groups:[4,4],bpm:104,ticks:'pulse',
+ steps:{0:{t:'C',h:'B',a:1},4:{t:'W',h:'B'}},
+ say:'KLATSCH – 2-3-4 – WINKEN – 6-7-8',
+ tip:'Der Volks-Taal für Bhajans, Filmmusik, Qawwali. Einfachster Einstieg: Klatsch auf 1, Winken auf 5.'},
+
+{id:'rupak',name:'Rupak',flag:'🇮🇳',region:'Indien',meter:'7 Matras = 3+2+2',stars:2,pulses:7,sub:1,groups:[3,2,2],bpm:88,ticks:'pulse',
+ steps:{0:{t:'W',h:'B'},3:{t:'C',h:'B',a:1},5:{t:'C',h:'B',a:1}},
+ say:'WINKEN-2-3 – KLATSCH-5 – KLATSCH-7',
+ tip:'Der verkehrte Taal: Er beginnt mit dem WINKEN (khali) — fühlt sich an, als würde der Zyklus „falsch" starten. 7 Schläge in 3+2+2. Theka: Tin Tin Na | Dhin Na | Dhin Na.'},
+
+{id:'bulerias',name:'Bulerías',flag:'🇪🇸',region:'Flamenco',meter:'12 Schläge = 3+3+2+2+2',stars:3,pulses:12,sub:1,groups:[3,3,2,2,2],bpm:210,ticks:'pulse',
+ steps:{2:{t:'T',h:'R',a:1},5:{t:'T',h:'L',a:1},7:{t:'T',h:'R',a:1},9:{t:'T',h:'L',a:1},11:{t:'T',h:'R',a:1}},
+ say:'1-2-TAK 4-5-TAK 7-TAK 9-TAK 11-TAK',
+ tip:'Das Herz des Flamenco: Betonung auf 3, 6, 8, 10, 12 — die 12 ist die gefühlte „Eins". Erst langsam zählen (1-2-3 …), dann Tempo. Palmas-Feeling pur.'},
+
+{id:'rachenitsa',name:'Rachenitsa',flag:'🇧🇬',region:'Balkan',meter:'7/8 = 2+2+3',stars:1,pulses:7,sub:1,groups:[2,2,3],bpm:190,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'k',h:'L'},2:{t:'D',h:'R',a:1},3:{t:'k',h:'L'},4:{t:'D',h:'R',a:1},5:{t:'k',h:'L'},6:{t:'k',h:'R'}},
+ say:'EINS-zwei DREI-vier FÜNF-sechs-sieben',
+ tip:'DER Balkan-Klassiker (2+2+3) — hinkt schön. Jeder Achtel wird geklopft, Akzente auf den Gruppen-Anfängen. Auf dem Lenkrad: klopf-klopf, klopf-klopf, klopf-klopf-KLOPF.'},
+
+{id:'aksak',name:'Aksak (9/8)',flag:'🇹🇷',region:'Türkei / Balkan',meter:'9/8 = 2+2+2+3',stars:2,pulses:9,sub:1,groups:[2,2,2,3],bpm:170,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'k',h:'L'},2:{t:'D',h:'R',a:1},3:{t:'k',h:'L'},4:{t:'D',h:'R',a:1},5:{t:'k',h:'L'},6:{t:'D',h:'R',a:1},7:{t:'k',h:'L'},8:{t:'k',h:'R'}},
+ say:'EINS-zwei DREI-vier FÜNF-sechs SIEBEN-acht-neun',
+ tip:'„Aksak" = hinkend: eine Zweiergruppe mehr als die Rachenitsa, der lange Schritt bleibt am Ende.'},
+
+{id:'kopanitsa',name:'Kopanitsa',flag:'🇧🇬',region:'Bulgarien',meter:'11/8 = 2+2+3+2+2',stars:3,pulses:11,sub:1,groups:[2,2,3,2,2],bpm:165,
+ steps:{0:{t:'D',h:'R',a:1},1:{t:'k',h:'L'},2:{t:'D',h:'R',a:1},3:{t:'k',h:'L'},4:{t:'D',h:'R',a:1},5:{t:'k',h:'L'},6:{t:'k',h:'R'},7:{t:'D',h:'L',a:1},8:{t:'k',h:'R'},9:{t:'D',h:'L',a:1},10:{t:'k',h:'R'}},
+ say:'EINS-zwei DREI-vier FÜNF-sechs-sieben ACHT-neun ZEHN-elf',
+ tip:'11 Achtel, symmetrisch gespiegelt um die 3er-Figur in der Mitte. Klingt wild, ist streng logisch. Die Königsdisziplin fürs ungerade Zählen.'},
+
+{id:'onedrop',name:'Reggae One Drop',flag:'🇯🇲',region:'Jamaika',meter:'4/4 · Achtel',stars:1,pulses:8,sub:2,groups:[2,2,2,2],bpm:76,
+ steps:{4:{t:'B',h:'B',a:1}},hats:[1,3,5,7],
+ say:'eins: NICHTS – zwei: tick – DREI: BOOM (beide!) – vier: tick',
+ tip:'Die Kunst der Auslassung: Die 1 bleibt LEER, Bass+Snare knallen BEIDE HÄNDE zusammen auf der 3. Leise „tick" (Hi-Hat) auf den Off-Beats. Fühle die leere 1 — nicht verlieren!'},
+
+{id:'swing',name:'Swing / Shuffle',flag:'🇺🇸',region:'Jazz',meter:'4/4 · Triolen',stars:2,pulses:12,sub:3,groups:[3,3,3,3],bpm:126,
+ steps:{0:{t:'D',h:'R',a:1},2:{t:'T',h:'L'},3:{t:'D',h:'R',a:1},5:{t:'T',h:'L'},6:{t:'D',h:'R',a:1},8:{t:'T',h:'L'},9:{t:'D',h:'R',a:1},11:{t:'T',h:'L'}},
+ say:'DUM-ba-DUM-ba-DUM-ba-DUM-ba (lang-kurz, lang-kurz)',
+ tip:'Zwei Triolen verschmelzen zu lang-kurz — das ist der Swing-Feel. Rechte Hand auf den Downbeats, linke auf die „bump"-Note.'},
+
+{id:'taiko',name:'Taiko Don Doko',flag:'🇯🇵',region:'Japan',meter:'4/4 · Achtel',stars:2,pulses:8,sub:2,groups:[4,4],bpm:92,
+ steps:{0:{t:'D',h:'R',a:1},2:{t:'k',h:'L'},3:{t:'k',h:'R'},4:{t:'D',h:'L',a:1},6:{t:'k',h:'R'},7:{t:'k',h:'L'}},
+ say:'DON do-ko DON do-ko',
+ tip:'Taiko-Basis: DON = voller Schlag (ganze Hand, laut), do-ko = zwei schnelle leichte Achtel. Stets abwechselnde Hände — kraftvoll und meditativ zugleich.'},
+
+{id:'maloya',name:'Maloya',flag:'🇷🇪',region:'La Réunion',meter:'12/8 · ternär, Akzent auf dem Afterbeat',stars:3,pulses:12,sub:3,groups:[3,3,3,3],bpm:96,
+ steps:{0:{t:'D',h:'R'},2:{t:'T',h:'L',a:1},3:{t:'D',h:'R'},5:{t:'T',h:'L',a:1},6:{t:'D',h:'R'},8:{t:'T',h:'L',a:1},9:{t:'D',h:'R'},11:{t:'T',h:'L',a:1}},
+ say:'dum-ba-TAK dum-ba-TAK dum-ba-TAK dum-ba-TAK',
+ tip:'Maloya von La Réunion (UNESCO-Weltkulturerbe): 12/8, also triolisch — aber der AKZENT liegt nicht auf dem Beat, sondern auf dem letzten Achtel davor. Rechte Hand = tiefer Roulèr-Schlag (dum), linke Hand = der „tak" hinten drauf. Dieses Nach-hinten-Kippen ist der Maloya-Shuffle; erst im Halbtempo klatschen, dann spielen. Kayamb (Shaker) und Roulèr (Fass-Trommel) laufen eigentlich ineinander — hier übernimmt eine Hand den Shaker-Part.'}
+];
+
+/* ================= AUDIO ================= */
+let ctx=null, master=null;
+function ensureCtx(){
+  if(!ctx){
+    ctx = new (window.AudioContext||window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value=0.85; master.connect(ctx.destination);
+  }
+  if(ctx.state==='suspended') ctx.resume();
+}
+function panNode(pan){
+  if(ctx.createStereoPanner){ const p=ctx.createStereoPanner(); p.pan.value=pan; return p; }
+  const p=ctx.createPanner(); p.panningModel='equalpower'; p.setPosition(pan,0,0.5); return p;
+}
+function noiseBuf(){
+  if(window.__nb) return window.__nb;
+  const b=ctx.createBuffer(1,ctx.sampleRate*0.3,ctx.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  window.__nb=b; return b;
+}
+/* Hand-Stimmung: die rechte Hand klingt eine Terz höher als die linke.
+   PITCH_R_SEMITONES = 4 → große Terz (Faktor 1.2599), 3 → kleine Terz.
+   Zum Ändern nur diese Zahl anpassen. */
+const PITCH_R_SEMITONES = 4;
+const PITCH_R = Math.pow(2, PITCH_R_SEMITONES/12);
+/* Akzente hörbar machen: unbetonte Schläge leiser, betonte bleiben Vollpegel
+   (so clippt nichts — die Spitze bleibt wie vorher). */
+const VEL_UNACCENTED = 0.7;
+
+function playStroke(t,hand,when,accent){
+  if(!when) when=ctx.currentTime;
+  const vel = accent ? 1 : VEL_UNACCENTED;
+  const pan = hand==='L'?-0.85 : hand==='R'?0.85 : 0;
+  // Rechts wird um PITCH_R nach oben transponiert, links bleibt Referenzhöhe.
+  const pf = hand==='R' ? PITCH_R : 1;
+  const out=panNode(pan); out.connect(master);
+  const g=ctx.createGain(); g.connect(out);
+  function osc(type,f0,f1,dur,vol,curve){
+    const o=ctx.createOscillator(); o.type=type;
+    o.frequency.setValueAtTime(f0*pf,when);
+    if(f1) o.frequency.exponentialRampToValueAtTime(f1*pf,when+dur);
+    const og=ctx.createGain();
+    og.gain.setValueAtTime(vol*vel,when);
+    og.gain.exponentialRampToValueAtTime(0.001,when+dur);
+    o.connect(og); og.connect(out);
+    o.start(when); o.stop(when+dur+0.02);
+  }
+  function noise(dur,vol,fType,freq,q){
+    const s=ctx.createBufferSource(); s.buffer=noiseBuf();
+    const f=ctx.createBiquadFilter(); f.type=fType; f.frequency.value=Math.min(freq*pf,18000); if(q)f.Q.value=q;
+    const ng=ctx.createGain();
+    ng.gain.setValueAtTime(vol*vel,when); ng.gain.exponentialRampToValueAtTime(0.001,when+dur);
+    s.connect(f); f.connect(ng); ng.connect(out);
+    s.start(when); s.stop(when+dur+0.02);
+  }
+  switch(t){
+    case 'D': osc('sine',150,48,0.28,1.0); noise(0.03,0.35,'lowpass',400); break;
+    case 'T': osc('triangle',880,660,0.06,0.55); noise(0.025,0.30,'highpass',3200); break;
+    case 'k': osc('triangle',640,520,0.045,0.22); break;
+    case 'B': osc('sine',150,45,0.30,1.0); noise(0.09,0.45,'bandpass',1900,0.9); break;
+    case 'C': noise(0.05,0.7,'bandpass',1250,1.1);
+              {const s=ctx.createBufferSource(); s.buffer=noiseBuf();
+               const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=Math.min(1250*pf,18000); f.Q.value=1.1;
+               const ng=ctx.createGain(); ng.gain.setValueAtTime(0.5*vel,when+0.018);
+               ng.gain.exponentialRampToValueAtTime(0.001,when+0.07);
+               s.connect(f); f.connect(ng); ng.connect(out); s.start(when+0.014); s.stop(when+0.1);} break;
+    case 'tick': osc('sine',1550,1400,0.03,0.10); break;
+    case 'tickA': osc('sine',1900,1700,0.035,0.22); break;
+    case 'hat': noise(0.03,0.13,'highpass',7000); break;
+  }
+}
+
+/* ================= STATE ================= */
+let cur=0, bpm=100, playing=false, timer=null, nextTime=0, anchor=0, lastVis=-1;
+const $=id=>document.getElementById(id);
+function pulseDur(){ return 60/bpm/(R[cur].sub>1?R[cur].sub:1); }
+
+/* ================= RENDER ================= */
+function buildChips(){
+  const c=$('chips'); c.innerHTML='';
+  R.forEach((r,i)=>{
+    const b=document.createElement('button');
+    b.className='chip'+(i===cur?' sel':'');
+    b.innerHTML=r.flag+' '+r.name.split(' (')[0]+' <span class="st">'+'★'.repeat(r.stars)+'</span>';
+    b.onclick=()=>{ select(i); };
+    c.appendChild(b);
+  });
+}
+function renderGrid(){
+  const r=R[cur], g=$('grid'); g.innerHTML='';
+  const groupStart=new Set(); let acc=0;
+  r.groups.forEach(n=>{ groupStart.add(acc); acc+=n; });
+  for(let i=0;i<r.pulses;i++){
+    const cell=document.createElement('div');
+    cell.className='cell'; cell.id='c'+i;
+    const st=r.steps[i];
+    const tick = r.ticks==='pulse' || (r.hats&&r.hats.includes(i));
+    if(st){
+      cell.classList.add(st.h, 'has');
+      if(st.a) cell.classList.add('acc');
+      if(st.t==='W') cell.textContent='W';
+      else cell.textContent=st.t==='k'?'k':st.t;
+    } else if(tick){ cell.classList.add('tick'); }
+    if(i>0 && groupStart.has(i)) cell.classList.add('gsep');
+    g.appendChild(cell);
+  }
+  $('grouplbl').textContent = r.groups.join(' + ') + (r.sub>1 ? '  ·  '+(r.pulses/r.sub)+' Beats × '+r.sub : '');
+}
+function renderInfo(){
+  const r=R[cur];
+  $('rname').textContent=r.flag+' '+r.name;
+  $('rmeta').textContent=r.region+' · '+r.meter;
+  $('rstars').textContent='★'.repeat(r.stars)+'☆'.repeat(3-r.stars);
+  $('rsay').textContent='„'+r.say+'"';
+  $('rtip').textContent=r.tip;
+  bpm=r.bpm; $('bpmslider').value=bpm; $('bpmval').innerHTML=bpm+'<small>BPM</small>';
+  $('symL').textContent=''; $('symR').textContent='';
+  $('rcount').textContent=R.length;
+  buildChips(); renderGrid(); updatePadLabels();
+}
+/* Welchen Klang spielt das Pad? Genau den, den der gewählte Rhythmus für diese
+   Hand benutzt — vorher waren die Pads fest auf D (links) / T (rechts) verdrahtet
+   und klangen damit anders als der Sequencer (z. B. Teental: Clap C). */
+const VOICE_LABEL={D:'Dum · Bass',T:'Tak · Slap',k:'k · Ghost',B:'B · Bass+Noise',C:'C · Clap',W:'—'};
+function padVoice(hand){
+  const r=R[cur], perHand={}, overall={};
+  // Akzentuierte Schläge (a:1) wiegen mehr: das Pad soll den tragenden Klang spielen,
+  // nicht den häufigsten Ghost-Note-Typ (z. B. Taiko: D akzentuiert, k nur Füllnote).
+  const w = st => st.a ? 3 : 1;
+  for(const k in r.steps){
+    const st=r.steps[k];
+    if(!st || st.t==='W') continue;
+    overall[st.t]=(overall[st.t]||0)+w(st);
+    if(st.h===hand || st.h==='B') perHand[st.t]=(perHand[st.t]||0)+w(st);
+  }
+  const top=o=>{ let best=null,bn=0; for(const t in o) if(o[t]>bn){bn=o[t];best=t;} return best; };
+  return top(perHand) || top(overall) || (hand==='L'?'D':'T');
+}
+function updatePadLabels(){
+  const vl=padVoice('L'), vr=padVoice('R');
+  $('subL').textContent = VOICE_LABEL[vl]||vl;
+  $('subR').textContent = VOICE_LABEL[vr]||vr;
+}
+function select(i){ const was=playing; stop(); cur=i; renderInfo(); if(was) start(); }
+
+/* ================= FLASH ================= */
+function flashPad(el, cls, sym){
+  el.classList.remove('lit','wave'); void el.offsetWidth;
+  el.classList.add(cls);
+  const s=el.querySelector('.sym'); s.textContent=sym||'';
+  setTimeout(()=>{ s.textContent=''; el.classList.remove(cls); }, 170);
+}
+function visualPulse(i){
+  const r=R[cur], st=r.steps[i];
+  const cells=$('grid').children;
+  // Cursor sitzt auf dem Puls, der JETZT klingt (vorher: einen Puls zu weit vorn)
+  for(const c of cells) c.classList.remove('cur');
+  if(cells[i]) cells[i].classList.add('cur');
+  const prev=(i-1+r.pulses)%r.pulses;
+  if(cells[prev]){
+    cells[prev].classList.add('done');
+    setTimeout(()=>{ const c=$('grid').children[prev]; if(c) c.classList.remove('done'); }, 220);
+  }
+  if(st){
+    const sym = symOf(st.t);
+    if(st.h==='L'){ flashPad($('padL'),'lit',sym); }
+    else if(st.h==='R'){ flashPad($('padR'),'lit',sym); }
+    else { flashPad($('padL'),'lit',sym); flashPad($('padR'),'lit',sym); }
+  }
+}
+function symOf(t){
+  return t==='W'?'👋':t==='C'?'👏':t==='k'?'k':t==='B'?'B':t;
+}
+
+/* ================= SCHEDULER ================= */
+function schedule(){
+  const r=R[cur];
+  if(ctx.state!=='running'){ ctx.resume().catch(()=>{}); return; }
+  if(nextTime < ctx.currentTime){ // ctx war suspendiert -> Raster halten statt bei Puls 0 neu starten
+    const behind = Math.floor((ctx.currentTime - nextTime)/pulseDur()) + 1;
+    nextTime += behind*pulseDur();
+    curPulseIdx = (curPulseIdx + behind) % r.pulses;
+    anchor = nextTime - curPulseIdx*pulseDur();
+  }
+  while(nextTime < ctx.currentTime + 0.12){
+    const i=curPulseIdx; const st=r.steps[i];
+    if(st && st.t!=='W') playStroke(st.t, st.h, nextTime, !!st.a);
+    if(r.ticks==='pulse' && !st){
+      const groupStart=new Set(); let acc=0;
+      r.groups.forEach(n=>{ groupStart.add(acc); acc+=n; });
+      playStroke(groupStart.has(i)?'tickA':'tick','B',nextTime, groupStart.has(i));
+    }
+    if(r.hats && r.hats.includes(i) && !st) playStroke('hat','B',nextTime, false);
+    nextTime += pulseDur();
+    curPulseIdx = (curPulseIdx+1) % r.pulses;
+  }
+}
+let curPulseIdx=0, perfAnchor=0;
+function start(){
+  ensureCtx();
+  stopTimer();
+  curPulseIdx=0; lastVis=-1;
+  // Eine einzige Zeitbasis für Klang UND Bild: der Startpunkt der Audio-Uhr.
+  anchor = nextTime = ctx.currentTime + 0.08;
+  perfAnchor = performance.now();              // nur Notnagel, wenn kein Audio läuft
+  playing=true; $('play').textContent='⏸';
+  timer=setInterval(schedule,25);
+  requestAnimationFrame(visLoop);
+}
+function stopTimer(){ if(timer){clearInterval(timer); timer=null;} }
+function stop(){
+  playing=false; stopTimer(); $('play').textContent='▶';
+  const cells=$('grid').children;
+  for(const c of cells) c.classList.remove('cur','done');
+}
+/* Position der AUDIO-Uhr, die JETZT aus dem Lautsprecher kommt.
+   getOutputTimestamp() liefert die exakte Zuordnung Audio-Uhr <-> performance.now();
+   sonst wird die gemeldete Ausgabelatenz abgezogen (Bluetooth: gern 150-300 ms). */
+function audTime(){
+  if(ctx.state==='running'){
+    if(ctx.getOutputTimestamp){
+      const ts=ctx.getOutputTimestamp();
+      if(ts && ts.contextTime>0 && ts.performanceTime>0)
+        return ts.contextTime + (performance.now()-ts.performanceTime)/1000;
+    }
+    return ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
+  }
+  return anchor + (performance.now()-perfAnchor)/1000;
+}
+function visLoop(){
+  if(!playing) return;
+  const r=R[cur];
+  // Bild folgt der gehörten Audio-Uhr — nicht der Wanduhr, sonst driften Bild und Klang.
+  const idx = Math.floor((audTime() - anchor)/pulseDur());
+  if(idx>=0 && idx!==lastVis){ visualPulse(idx % r.pulses); lastVis=idx; }
+  requestAnimationFrame(visLoop);
+}
+
+/* ================= EVENTS ================= */
+$('play').onclick=()=>{ playing?stop():start(); };
+$('bpmslider').oninput=e=>{ bpm=+e.target.value; $('bpmval').innerHTML=bpm+'<small>BPM</small>'; if(playing){ stop(); start(); } };
+$('bpmup').onclick=()=>{ bpm=Math.min(260,bpm+5); $('bpmslider').value=bpm; $('bpmval').innerHTML=bpm+'<small>BPM</small>'; };
+$('bpmdn').onclick=()=>{ bpm=Math.max(40,bpm-5); $('bpmslider').value=bpm; $('bpmval').innerHTML=bpm+'<small>BPM</small>'; };
+/* Pads: Doppeltipp-Zoom und Textauswahl/Callout zuverlässig unterdrücken.
+   preventDefault im pointerdown ist das, was iOS/Safari tatsächlich am Zoomen
+   hindert; touch-action:none im CSS deckt den Rest ab. */
+function bindPad(el, hand){
+  el.addEventListener('pointerdown', e=>{
+    if(e.cancelable) e.preventDefault();
+    ensureCtx();
+    const v=padVoice(hand); playStroke(v,hand,undefined,true); flashPad(el,'lit',symOf(v));
+  }, {passive:false});
+  el.addEventListener('touchstart', e=>{ if(e.cancelable) e.preventDefault(); }, {passive:false});
+}
+bindPad($('padL'),'L');
+bindPad($('padR'),'R');
+document.addEventListener('dblclick', e=>{ if(e.cancelable) e.preventDefault(); }, {passive:false});
+document.addEventListener('visibilitychange',()=>{ if(document.hidden && playing) stop(); });
+// iOS: Audio-Context beim ALLERERSTEN Touch überall entsperren
+['touchstart','pointerdown'].forEach(ev=>document.addEventListener(ev,()=>ensureCtx(),{once:true,passive:true}));
+
+/* init */
+renderInfo();
+</script>
+</body>
+</html>
